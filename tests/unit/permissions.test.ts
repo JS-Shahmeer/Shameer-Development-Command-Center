@@ -80,3 +80,31 @@ describe("visibleProjectsWhere", () => {
     });
   });
 });
+
+describe("task permissions", () => {
+  const assigned = { assigneeId: "dev", reporterId: "lead" };
+  const raisedByDev = { assigneeId: null, reporterId: "dev" };
+
+  it("lets any member create tasks, but only leads manage them", () => {
+    expect(can.createTask(dev, project)).toBe(true);
+    expect(can.createTask(outsider, project)).toBe(false);
+    expect(can.manageTasks(lead, project)).toBe(true);
+    expect(can.manageTasks(dev, project)).toBe(false);
+  });
+
+  it("lets the assignee move the task and the reporter edit it", () => {
+    expect(can.updateTaskProgress(dev, project, assigned)).toBe(true);
+    expect(can.editTask(dev, project, assigned)).toBe(false);
+    expect(can.editTask(dev, project, raisedByDev)).toBe(true);
+    expect(can.updateTaskProgress(dev, project, raisedByDev)).toBe(false);
+  });
+
+  it("keeps team views to admins and leads", () => {
+    expect(can.viewTeam(admin)).toBe(true);
+    expect(can.viewTeam(lead)).toBe(true);
+    expect(can.viewTeam(dev)).toBe(false);
+    expect(can.editProfile(dev, "dev")).toBe(true);
+    expect(can.editProfile(dev, "lead")).toBe(false);
+    expect(can.setCapacity(lead)).toBe(false);
+  });
+});

@@ -1,6 +1,7 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { LogOut, UserRound } from "lucide-react";
 import type { Role } from "@prisma/client";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -17,7 +18,7 @@ import { roleLabel } from "@/features/users/schemas";
 export function UserMenu({
   user,
 }: {
-  user: { name: string | null; email: string; image: string | null; role: Role };
+  user: { id: string; name: string | null; email: string; image: string | null; role: Role };
 }) {
   return (
     <DropdownMenu>
@@ -34,6 +35,11 @@ export function UserMenu({
       <DropdownMenuContent>
         <DropdownMenuLabel>{user.email}</DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href={`/team/${user.id}`}>
+            <UserRound /> My profile
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => void signOutAction()}>
           <LogOut /> Sign out
         </DropdownMenuItem>

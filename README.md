@@ -6,13 +6,13 @@ Built with Next.js (App Router), TypeScript, Tailwind CSS, PostgreSQL, Prisma an
 
 ## Status
 
-This is **Phase 1** of the plan in the [architecture doc](https://claude.ai/artifact/WzSWtrPTU4bsyaSSnNm1Ne).
+Phases 1 and 2 of the plan in the [architecture doc](https://claude.ai/artifact/WzSWtrPTU4bsyaSSnNm1Ne) are built.
 
 | Phase | Scope | State |
 | --- | --- | --- |
 | 1. Foundation | GitHub sign-in with invites, roles, clients, projects, members, notes, dashboard basics, seed, CI | Done |
-| 2. Core work | Tasks (priorities, dependencies, acceptance criteria), team profiles and workloads, full dashboard | Next |
-| 3. Insight and AI | Global search, daily and weekly reports, AI task breakdown with human approval | Later |
+| 2. Core work | Tasks (board, statuses, priorities, assignees, deadlines, dependencies, acceptance criteria, comments), team profiles, skills and workloads, dashboard blockers and overdue work | Done |
+| 3. Insight and AI | Global search, daily and weekly reports, AI task breakdown with human approval | Next |
 
 ## Roles
 
@@ -26,6 +26,17 @@ Permissions live in [`src/lib/permissions.ts`](src/lib/permissions.ts) and every
 | View projects and notes | All | Projects they lead or belong to | Projects they belong to |
 | Write notes | Any | Their projects | Their projects (edit own only) |
 | Delete clients | Yes | No | No |
+| Create tasks | Any project | Their projects | Their projects (assign to self only) |
+| Assign, reassign, delete tasks | Any project | Their projects | No |
+| Edit task details | Any | Their projects | Tasks they reported |
+| Change status, tick criteria | Any | Their projects | Tasks assigned to them |
+| Comment | Any | Their projects | Their projects (delete own only) |
+| Team page and workloads | Everyone | People on their projects | Own profile only |
+| Edit profile and skills | Anyone's, plus weekly capacity | Own | Own |
+
+Task rules enforced on the server: blocking a task needs a reason; a task can't be marked done until everything it depends on is done; dependencies must be in the same project and can't form a loop; assignees must be project members.
+
+Workload is the sum of estimated hours on a person's open tasks against their weekly capacity (default 40h, set by an admin). Tasks without an estimate are counted separately so the number isn't silently low.
 
 ## Local setup
 
@@ -81,7 +92,8 @@ Preview deployments run migrations too, so give the Preview environment its own 
 
 ```
 src/
-  app/                  routes: (auth)/sign-in, (app)/dashboard, projects, clients, settings/users
+  app/                  routes: (auth)/sign-in, (app)/dashboard, projects, projects/[slug]/tasks,
+                        tasks, tasks/[taskId], team, team/[userId], clients, settings/users
   features/<feature>/   schemas.ts (Zod), service.ts (data + permission checks),
                         actions.ts (Server Actions), components/
   components/ui         buttons, inputs, dialogs, menus
