@@ -5,7 +5,7 @@ type Client = PrismaClient | Prisma.TransactionClient;
 export type ActivityInput = {
   actorId: string | null;
   action: string;
-  entityType: "User" | "Invite" | "Client" | "Project" | "ProjectMember" | "Note" | "Task";
+  entityType: "User" | "Invite" | "Client" | "Project" | "ProjectMember" | "Note" | "Task" | "AiBreakdown";
   entityId: string;
   projectId?: string | null;
   summary: string;

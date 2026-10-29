@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { orNotFound } from "@/lib/errors";
@@ -9,6 +9,7 @@ import { listProjectTasks } from "@/features/tasks/service";
 import { TaskBoard } from "@/features/tasks/components/task-board";
 import { toCardData } from "@/features/tasks/components/to-card";
 import { PageHeader } from "@/components/shared/page-header";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Tasks" };
 
@@ -27,7 +28,20 @@ export default async function ProjectTasksPage({ params }: { params: Promise<{ s
       >
         <ArrowLeft className="size-4" aria-hidden /> {project.name}
       </Link>
-      <PageHeader title="Tasks" description={`${open} open, ${tasks.length - open} done`} />
+      <PageHeader
+        title="Tasks"
+        description={`${open} open, ${tasks.length - open} done`}
+        actions={
+          can.manageTasks(user, project) &&
+          !project.archivedAt && (
+            <Button asChild variant="secondary">
+              <Link href={`/projects/${project.slug}/breakdown`}>
+                <Sparkles /> AI breakdown
+              </Link>
+            </Button>
+          )
+        }
+      />
       <TaskBoard
         projectId={project.id}
         tasks={tasks.map((t) => toCardData(t, user, project))}

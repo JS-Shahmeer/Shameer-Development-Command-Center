@@ -1,5 +1,6 @@
 import type { Role } from "@prisma/client";
 import {
+  BarChart3,
   Building2,
   FolderKanban,
   LayoutDashboard,
@@ -11,11 +12,12 @@ import {
 
 export type NavItem = { href: string; label: string; icon: LucideIcon; roles?: Role[] };
 
-// Only live features appear here; Phase 3 adds Search and Reports.
+// Only live features appear here. Search lives in the header.
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/tasks", label: "My tasks", icon: ListTodo },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/team", label: "Team", icon: Users, roles: ["ADMIN", "LEAD"] },
   { href: "/clients", label: "Clients", icon: Building2, roles: ["ADMIN", "LEAD"] },
   { href: "/settings/users", label: "Users", icon: UserCog, roles: ["ADMIN"] },

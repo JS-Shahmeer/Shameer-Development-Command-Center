@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/session";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { UserMenu } from "@/components/layout/user-menu";
+import { SearchBox } from "@/components/layout/search-box";
+import { Suspense } from "react";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -22,9 +24,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="bg-background/80 sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b px-4 backdrop-blur sm:px-6">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <MobileNav role={user.role} />
-            <span className="font-semibold md:hidden">Command Center</span>
+            <Suspense>
+              <SearchBox />
+            </Suspense>
           </div>
           <UserMenu user={user} />
         </header>

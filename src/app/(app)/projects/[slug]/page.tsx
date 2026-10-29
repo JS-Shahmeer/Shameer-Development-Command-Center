@@ -10,6 +10,7 @@ import {
   KanbanSquare,
   Mail,
   Phone,
+  Sparkles,
   TestTube2,
 } from "lucide-react";
 import { requireUser } from "@/lib/session";
@@ -89,6 +90,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
                 <KanbanSquare /> Tasks ({totalTasks - countOf("DONE")} open)
               </Link>
             </Button>
+            {can.manageTasks(user, project) && !project.archivedAt && (
+              <Button asChild variant="secondary">
+                <Link href={`/projects/${project.slug}/breakdown`}>
+                  <Sparkles /> AI breakdown
+                </Link>
+              </Button>
+            )}
             {permissions.edit && (
               <ProjectActions
                 id={project.id}
