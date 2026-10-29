@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: dcc
+      POSTGRES_PASSWORD: dcc
+      POSTGRES_DB: dcc
+    ports:
+      - "5432:5432"
+    volumes:
+      - dcc-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dcc"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  dcc-db:
