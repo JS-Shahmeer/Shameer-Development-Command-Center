@@ -85,6 +85,7 @@ async function main() {
   // Start clean so the seed can be re-run safely.
   await db.$transaction([
     db.activityLog.deleteMany(),
+    db.aiBreakdown.deleteMany(),
     db.taskComment.deleteMany(),
     db.taskDependency.deleteMany(),
     db.acceptanceCriterion.deleteMany(),

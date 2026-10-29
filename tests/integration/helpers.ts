@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 export async function resetDb() {
   await db.$transaction([
     db.activityLog.deleteMany(),
+    db.aiBreakdown.deleteMany(),
     db.taskComment.deleteMany(),
     db.taskDependency.deleteMany(),
     db.acceptanceCriterion.deleteMany(),

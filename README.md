@@ -6,35 +6,51 @@ Built with Next.js (App Router), TypeScript, Tailwind CSS, PostgreSQL, Prisma an
 
 ## Status
 
-Phases 1 and 2 of the plan in the [architecture doc](https://claude.ai/artifact/WzSWtrPTU4bsyaSSnNm1Ne) are built.
+All three phases of the plan in the [architecture doc](https://claude.ai/artifact/WzSWtrPTU4bsyaSSnNm1Ne) are built.
 
-| Phase | Scope | State |
-| --- | --- | --- |
-| 1. Foundation | GitHub sign-in with invites, roles, clients, projects, members, notes, dashboard basics, seed, CI | Done |
-| 2. Core work | Tasks (board, statuses, priorities, assignees, deadlines, dependencies, acceptance criteria, comments), team profiles, skills and workloads, dashboard blockers and overdue work | Done |
-| 3. Insight and AI | Global search, daily and weekly reports, AI task breakdown with human approval | Next |
+| Phase             | Scope                                                                                                                                                                            | State |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| 1. Foundation     | GitHub sign-in with invites, roles, clients, projects, members, notes, dashboard basics, seed, CI                                                                                | Done  |
+| 2. Core work      | Tasks (board, statuses, priorities, assignees, deadlines, dependencies, acceptance criteria, comments), team profiles, skills and workloads, dashboard blockers and overdue work | Done  |
+| 3. Insight and AI | Global search, daily and weekly reports, AI task breakdown with human approval                                                                                                   | Done  |
 
 ## Roles
 
 Permissions live in [`src/lib/permissions.ts`](src/lib/permissions.ts) and every service calls them, so hiding a button is never the only guard.
 
-| Action | Admin | Project lead | Developer |
-| --- | --- | --- | --- |
-| Invite users, change roles, deactivate | Yes | No | No |
-| Create projects, manage clients | Yes | Yes | No |
-| Edit, archive, manage members | Any project | Projects they lead | No |
-| View projects and notes | All | Projects they lead or belong to | Projects they belong to |
-| Write notes | Any | Their projects | Their projects (edit own only) |
-| Delete clients | Yes | No | No |
-| Create tasks | Any project | Their projects | Their projects (assign to self only) |
-| Assign, reassign, delete tasks | Any project | Their projects | No |
-| Edit task details | Any | Their projects | Tasks they reported |
-| Change status, tick criteria | Any | Their projects | Tasks assigned to them |
-| Comment | Any | Their projects | Their projects (delete own only) |
-| Team page and workloads | Everyone | People on their projects | Own profile only |
-| Edit profile and skills | Anyone's, plus weekly capacity | Own | Own |
+| Action                                 | Admin                          | Project lead                    | Developer                            |
+| -------------------------------------- | ------------------------------ | ------------------------------- | ------------------------------------ |
+| Invite users, change roles, deactivate | Yes                            | No                              | No                                   |
+| Create projects, manage clients        | Yes                            | Yes                             | No                                   |
+| Edit, archive, manage members          | Any project                    | Projects they lead              | No                                   |
+| View projects and notes                | All                            | Projects they lead or belong to | Projects they belong to              |
+| Write notes                            | Any                            | Their projects                  | Their projects (edit own only)       |
+| Delete clients                         | Yes                            | No                              | No                                   |
+| Create tasks                           | Any project                    | Their projects                  | Their projects (assign to self only) |
+| Assign, reassign, delete tasks         | Any project                    | Their projects                  | No                                   |
+| Edit task details                      | Any                            | Their projects                  | Tasks they reported                  |
+| Change status, tick criteria           | Any                            | Their projects                  | Tasks assigned to them               |
+| Comment                                | Any                            | Their projects                  | Their projects (delete own only)     |
+| Team page and workloads                | Everyone                       | People on their projects        | Own profile only                     |
+| Edit profile and skills                | Anyone's, plus weekly capacity | Own                             | Own                                  |
+| AI task breakdown                      | Any project                    | Their projects                  | No                                   |
+| Search and reports                     | Everything                     | Their projects                  | Their projects                       |
 
 Task rules enforced on the server: blocking a task needs a reason; a task can't be marked done until everything it depends on is done; dependencies must be in the same project and can't form a loop; assignees must be project members.
+
+## Search, reports and AI
+
+**Search.** The header box (Ctrl/Cmd+K or `/`) searches projects, tasks, notes, people and, for admins and leads, clients. Every group runs its own permission-scoped query. Matching is case-insensitive substring (`ILIKE`) backed by `pg_trgm` GIN indexes. The architecture doc proposed Postgres full-text search (`tsvector`); trigram matching was chosen instead because people search this tool for names, slugs, partial words and tech terms (`next`, `ios`, `ACME-12`), which full-text stemming handles poorly, and it needs no extra generated columns.
+
+**Reports.** `/reports` shows a daily or weekly (Monday to Sunday, UTC) summary: tasks done, started, created, blocked, overdue and due next, per person and per project, optionally for one project. **Copy Markdown** gives a version for Slack or a client update.
+
+**AI task breakdown.** On a project, admins and its lead open **AI breakdown**, paste a client requirement and get a draft task list (titles, descriptions, priorities, estimates, acceptance criteria, dependencies, plus open questions for the client). Nothing is created until someone edits and approves the draft; approval re-validates everything on the server (members only as assignees, no dependency on an unticked task, no loops) and creates the tasks in one transaction. Drafts, approvals and discards are kept as history.
+
+- The Claude API is called only on the server (`src/features/ai/claude.ts`, marked `server-only`); the key never reaches the browser. Without `ANTHROPIC_API_KEY` the page explains how to turn it on.
+- Model: `claude-opus-5-5` by default (override with `ANTHROPIC_MODEL`), structured outputs validated with Zod, `effort: high`.
+- Server-side refusal fallbacks are enabled (`fallbacks: "default"`): if the model declines a request, the API retries it on a fallback model in the same call. Remove the `betas`/`fallbacks` lines in `claude.ts` to turn this off.
+- Each person can generate 10 drafts per hour, to keep spend predictable. Token counts are stored with each draft.
+- The client requirement is treated as data in the prompt, and the output is re-checked before anything is saved.
 
 Workload is the sum of estimated hours on a person's open tasks against their weekly capacity (default 40h, set by an admin). Tasks without an estimate are counted separately so the number isn't silently low.
 
@@ -57,17 +73,17 @@ To test real GitHub sign-in locally, create a GitHub OAuth app with callback `ht
 
 ## Scripts
 
-| Command | What it does |
-| --- | --- |
-| `pnpm dev` | Start the dev server |
-| `pnpm build` | Generate the Prisma client and build |
-| `pnpm lint` / `pnpm typecheck` | ESLint and TypeScript checks |
-| `pnpm test` | Unit tests (permissions, validation) |
-| `pnpm test:integration` | Service tests against a real database. **Wipes the database in `DATABASE_URL`**, so point it at a throwaway one |
-| `pnpm db:migrate` | Create or apply migrations in development |
-| `pnpm db:deploy` | Apply migrations without prompting (CI and production) |
-| `pnpm db:seed` | Reset and load sample data (refuses to run in production) |
-| `pnpm db:studio` | Browse the database |
+| Command                        | What it does                                                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                     | Start the dev server                                                                                            |
+| `pnpm build`                   | Generate the Prisma client and build                                                                            |
+| `pnpm lint` / `pnpm typecheck` | ESLint and TypeScript checks                                                                                    |
+| `pnpm test`                    | Unit tests (permissions, validation)                                                                            |
+| `pnpm test:integration`        | Service tests against a real database. **Wipes the database in `DATABASE_URL`**, so point it at a throwaway one |
+| `pnpm db:migrate`              | Create or apply migrations in development                                                                       |
+| `pnpm db:deploy`               | Apply migrations without prompting (CI and production)                                                          |
+| `pnpm db:seed`                 | Reset and load sample data (refuses to run in production)                                                       |
+| `pnpm db:studio`               | Browse the database                                                                                             |
 
 Example integration run against a separate database:
 
@@ -82,7 +98,7 @@ DATABASE_URL=postgresql://dcc:dcc@localhost:5432/dcc_test pnpm test:integration
 1. Import the repository in Vercel.
 2. Add **Neon** from the Vercel Marketplace (Storage tab). It sets `DATABASE_URL` (pooled). Add `DIRECT_URL` with the unpooled connection string from Neon.
 3. Create a GitHub OAuth app for production with callback `https://<your-domain>/api/auth/callback/github`.
-4. In Project Settings, Environment Variables, add `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET` and `ADMIN_EMAIL`. Do **not** set `AUTH_DEV_LOGIN`.
+4. In Project Settings, Environment Variables, add `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET` and `ADMIN_EMAIL`. Add `ANTHROPIC_API_KEY` (from the Claude Console) to turn on AI task breakdown. Do **not** set `AUTH_DEV_LOGIN`.
 5. Deploy. The `vercel-build` script runs `prisma migrate deploy` before `next build`, so migrations apply on every deploy. Don't run `pnpm db:seed` against production.
 6. Sign in with the `ADMIN_EMAIL` GitHub account, then invite your team from **Users**. Invitees sign in at `/sign-in` with the GitHub account that uses the invited email.
 
@@ -93,14 +109,15 @@ Preview deployments run migrations too, so give the Preview environment its own 
 ```
 src/
   app/                  routes: (auth)/sign-in, (app)/dashboard, projects, projects/[slug]/tasks,
-                        tasks, tasks/[taskId], team, team/[userId], clients, settings/users
+                        projects/[slug]/breakdown, tasks, tasks/[taskId], team, team/[userId],
+                        clients, search, reports, settings/users
   features/<feature>/   schemas.ts (Zod), service.ts (data + permission checks),
                         actions.ts (Server Actions), components/
   components/ui         buttons, inputs, dialogs, menus
   components/shared     page header, empty and error states, form field, confirm dialog
   lib/                  auth, db, env checks, permissions, action wrapper, activity log
 prisma/                 schema, migrations, seed
-tests/unit              permission and validation tests
+tests/unit              permission, validation and AI draft tests
 tests/integration       service tests against Postgres
 ```
 

@@ -1,16 +1,19 @@
 // Developer Command Center database schema.
 // Phase 1: auth, invites, clients, projects, members, notes, activity.
 // Phase 2: tasks, dependencies, acceptance criteria, comments, skills, capacity.
-// AI breakdowns arrive in Phase 3 as a new migration.
+// Phase 3: AI task breakdowns, plus trigram indexes for global search.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  // pg_trgm powers fast case-insensitive substring search (see the trgm indexes below).
+  extensions = [pg_trgm]
 }
 
 enum Role {
@@ -42,6 +45,12 @@ enum TaskPriority {
   URGENT
 }
 
+enum BreakdownStatus {
+  DRAFT
+  APPROVED
+  DISCARDED
+}
+
 enum ProjectRole {
   LEAD
   MEMBER
@@ -62,17 +71,21 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts       Account[]
-  sessions       Session[]
-  invitesSent    Invite[]        @relation("InvitedBy")
-  ledProjects    Project[]       @relation("ProjectLead")
-  memberships    ProjectMember[]
-  notes          Note[]
-  activities     ActivityLog[]
-  assignedTasks  Task[]          @relation("TaskAssignee")
-  reportedTasks  Task[]          @relation("TaskReporter")
-  taskComments   TaskComment[]
-  skills         UserSkill[]
+  accounts           Account[]
+  sessions           Session[]
+  invitesSent        Invite[]        @relation("InvitedBy")
+  ledProjects        Project[]       @relation("ProjectLead")
+  memberships        ProjectMember[]
+  notes              Note[]
+  activities         ActivityLog[]
+  assignedTasks      Task[]          @relation("TaskAssignee")
+  reportedTasks      Task[]          @relation("TaskReporter")
+  taskComments       TaskComment[]
+  skills             UserSkill[]
+  breakdowns         AiBreakdown[]   @relation("BreakdownCreator")
+  approvedBreakdowns AiBreakdown[]   @relation("BreakdownApprover")
+
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_name_trgm_idx")
 }
 
 model Account {
@@ -140,6 +153,7 @@ model Client {
   projects Project[]
 
   @@index([name])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Client_name_trgm_idx")
 }
 
 model Project {
@@ -161,17 +175,20 @@ model Project {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  client  Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  lead    User?           @relation("ProjectLead", fields: [leadId], references: [id], onDelete: SetNull)
-  members ProjectMember[]
-  notes   Note[]
-  tasks   Task[]
+  client     Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  lead       User?           @relation("ProjectLead", fields: [leadId], references: [id], onDelete: SetNull)
+  members    ProjectMember[]
+  notes      Note[]
+  tasks      Task[]
+  breakdowns AiBreakdown[]
 
   @@index([status])
   @@index([clientId])
   @@index([leadId])
   @@index([dueDate])
   @@index([archivedAt])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Project_name_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "Project_description_trgm_idx")
 }
 
 model ProjectMember {
@@ -202,6 +219,8 @@ model Note {
   author  User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
   @@index([projectId, pinned])
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Note_title_trgm_idx")
+  @@index([body(ops: raw("gin_trgm_ops"))], type: Gin, map: "Note_body_trgm_idx")
 }
 
 model ActivityLog {
@@ -251,6 +270,8 @@ model Task {
   @@index([projectId, status, position])
   @@index([assigneeId, status])
   @@index([status, dueDate])
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Task_title_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "Task_description_trgm_idx")
 }
 
 model AcceptanceCriterion {
@@ -311,4 +332,31 @@ model UserSkill {
 
   @@id([userId, skillId])
   @@index([skillId])
+}
+
+/// A Claude-drafted task list for a client requirement. Nothing becomes a real
+/// task until a lead edits and approves it.
+model AiBreakdown {
+  id           String          @id @default(cuid())
+  projectId    String
+  createdById  String?
+  requirement  String          @db.Text
+  model        String
+  status       BreakdownStatus @default(DRAFT)
+  /// Editable draft: { summary, openQuestions[], items[] } validated by features/ai/schemas.ts
+  draft        Json
+  inputTokens  Int             @default(0)
+  outputTokens Int             @default(0)
+  approvedById String?
+  approvedAt   DateTime?
+  createdTasks Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy  User?   @relation("BreakdownCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy User?   @relation("BreakdownApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([createdById, createdAt])
 }
