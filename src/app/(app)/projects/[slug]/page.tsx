@@ -7,6 +7,7 @@ import {
   ExternalLink,
   GitBranch,
   Globe,
+  KanbanSquare,
   Mail,
   Phone,
   TestTube2,
@@ -16,6 +17,7 @@ import { can } from "@/lib/permissions";
 import { orNotFound } from "@/lib/errors";
 import { getProjectBySlug } from "@/features/projects/service";
 import { listAssignableUsers } from "@/features/users/service";
+import { taskCountsByStatus } from "@/features/tasks/service";
 import { ProjectStatusBadge } from "@/features/projects/components/status-badge";
 import { ProjectActions } from "@/features/projects/components/project-actions";
 import { MembersPanel } from "@/features/projects/components/members-panel";
@@ -23,6 +25,7 @@ import { NotesPanel } from "@/features/notes/components/notes-panel";
 import { PageHeader } from "@/components/shared/page-header";
 import { formatDate } from "@/components/shared/relative-time";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -58,6 +61,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
   const { project, permissions } = await orNotFound(getProjectBySlug(user, slug));
   const candidates = permissions.manageMembers ? await listAssignableUsers(user) : [];
   const notes = project.notes.map((n) => ({ ...n, canEdit: can.editNote(user, project, n) }));
+  const taskCounts = await taskCountsByStatus(user, project.id);
+  const countOf = (s: keyof typeof taskCounts) => taskCounts[s];
+  const totalTasks = Object.values(taskCounts).reduce((n, c) => n + c, 0);
 
   return (
     <>
@@ -77,14 +83,21 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
           </span>
         }
         actions={
-          permissions.edit && (
-            <ProjectActions
-              id={project.id}
-              slug={project.slug}
-              name={project.name}
-              archived={Boolean(project.archivedAt)}
-            />
-          )
+          <>
+            <Button asChild>
+              <Link href={`/projects/${project.slug}/tasks`}>
+                <KanbanSquare /> Tasks ({totalTasks - countOf("DONE")} open)
+              </Link>
+            </Button>
+            {permissions.edit && (
+              <ProjectActions
+                id={project.id}
+                slug={project.slug}
+                name={project.name}
+                archived={Boolean(project.archivedAt)}
+              />
+            )}
+          </>
         }
       />
 
@@ -131,6 +144,54 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
         </div>
 
         <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <KanbanSquare className="text-muted size-4" aria-hidden /> Progress
+              </CardTitle>
+              <Link href={`/projects/${project.slug}/tasks`} className="text-primary text-xs hover:underline">
+                Open board
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {totalTasks ? (
+                <>
+                  <div
+                    className="bg-surface-muted h-2 overflow-hidden rounded-full"
+                    role="img"
+                    aria-label={`${countOf("DONE")} of ${totalTasks} tasks done`}
+                  >
+                    <div
+                      className="bg-success h-full"
+                      style={{ width: `${(countOf("DONE") / totalTasks) * 100}%` }}
+                    />
+                  </div>
+                  <dl className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <dt className="text-muted text-xs">In progress</dt>
+                      <dd className="font-semibold tabular-nums">
+                        {countOf("IN_PROGRESS") + countOf("IN_REVIEW")}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted text-xs">Blocked</dt>
+                      <dd className={`font-semibold tabular-nums ${countOf("BLOCKED") ? "text-danger" : ""}`}>
+                        {countOf("BLOCKED")}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted text-xs">Done</dt>
+                      <dd className="font-semibold tabular-nums">
+                        {countOf("DONE")}/{totalTasks}
+                      </dd>
+                    </div>
+                  </dl>
+                </>
+              ) : (
+                <p className="text-muted">No tasks yet.</p>
+              )}
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
